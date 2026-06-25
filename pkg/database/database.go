@@ -35,6 +35,8 @@ func Connect() (*gorm.DB, error) {
 		),
 		// Neon meng-host di luar negeri; biarkan timestamp dalam UTC agar konsisten.
 		NowFunc: func() time.Time { return time.Now().UTC() },
+		// Terjemahkan error driver ke error GORM (mis. gorm.ErrDuplicatedKey) agar mudah ditangani.
+		TranslateError: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gagal membuka koneksi database: %w", err)

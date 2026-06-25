@@ -38,7 +38,7 @@ func (s *AuthService) Login(username, password string) (string, *models.User, er
 		return "", nil, ErrInvalidCredentials
 	}
 
-	tok, err := s.tokens.Generate(u.ID, u.Role)
+	tok, err := s.tokens.Generate(u.ID, u.Role, u.MerchantName)
 	if err != nil {
 		return "", nil, err
 	}
