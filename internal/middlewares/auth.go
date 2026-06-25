@@ -10,8 +10,9 @@ import (
 
 // Kunci penyimpanan data user di context Fiber (c.Locals).
 const (
-	CtxUserID = "userID"
-	CtxRole   = "role"
+	CtxUserID   = "userID"
+	CtxRole     = "role"
+	CtxMerchant = "merchantName"
 )
 
 // RequireAuth memvalidasi JWT dari header Authorization: Bearer <token>.
@@ -31,6 +32,7 @@ func RequireAuth(tm *token.Manager) fiber.Handler {
 
 		c.Locals(CtxUserID, claims.UserID)
 		c.Locals(CtxRole, claims.Role)
+		c.Locals(CtxMerchant, claims.MerchantName)
 		return c.Next()
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/sitepat/subsigo-backend/internal/config"
 	"github.com/sitepat/subsigo-backend/internal/handlers"
 	"github.com/sitepat/subsigo-backend/internal/middlewares"
+	"github.com/sitepat/subsigo-backend/internal/models"
 	"github.com/sitepat/subsigo-backend/internal/repositories"
 	"github.com/sitepat/subsigo-backend/internal/services"
 	"github.com/sitepat/subsigo-backend/pkg/database"
@@ -37,9 +38,22 @@ func main() {
 
 	// --- Dependency injection ---
 	tm := token.NewManager(cfg.JWTSecret, cfg.JWTExpireHours)
+
+	// Repositories
 	userRepo := repositories.NewUserRepository(db)
+	citizenRepo := repositories.NewCitizenRepository(db)
+	quotaRepo := repositories.NewQuotaRepository(db)
+	txRepo := repositories.NewTransactionRepository(db)
+
+	// Services
 	authSvc := services.NewAuthService(userRepo, tm)
+	adminSvc := services.NewAdminService(citizenRepo, quotaRepo, txRepo)
+	claimSvc := services.NewClaimService(db)
+
+	// Handlers
 	authHandler := handlers.NewAuthHandler(authSvc)
+	adminHandler := handlers.NewAdminHandler(adminSvc)
+	claimHandler := handlers.NewClaimHandler(claimSvc)
 
 	app := fiber.New(fiber.Config{
 		AppName:      "SubsiGo Backend",
@@ -65,10 +79,22 @@ func main() {
 	protected := api.Group("", middlewares.RequireAuth(tm))
 	protected.Get("/me", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
-			"user_id": c.Locals(middlewares.CtxUserID).(uuid.UUID),
-			"role":    c.Locals(middlewares.CtxRole).(string),
+			"user_id":       c.Locals(middlewares.CtxUserID).(uuid.UUID),
+			"role":          c.Locals(middlewares.CtxRole).(string),
+			"merchant_name": c.Locals(middlewares.CtxMerchant),
 		})
 	})
+
+	// Rute admin (hanya role admin).
+	admin := protected.Group("/admin", middlewares.RequireRole(models.RoleAdmin))
+	admin.Post("/citizens", adminHandler.RegisterCitizen)
+	admin.Patch("/citizens/:id/eligibility", adminHandler.SetEligibility)
+	admin.Post("/citizens/:id/quotas", adminHandler.SetQuota)
+	admin.Get("/transactions", adminHandler.ListTransactions)
+
+	// Rute klaim subsidi (hanya role merchant/petugas lapangan).
+	claims := protected.Group("/claims", middlewares.RequireRole(models.RoleMerchant))
+	claims.Post("", claimHandler.Claim)
 
 	log.Printf("🚀 Server berjalan di port %s", cfg.Port)
 	if err := app.Listen(":" + cfg.Port); err != nil {

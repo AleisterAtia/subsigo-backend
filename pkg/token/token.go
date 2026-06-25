@@ -11,8 +11,9 @@ import (
 
 // Claims adalah payload JWT untuk pengguna sistem.
 type Claims struct {
-	UserID uuid.UUID `json:"uid"`
-	Role   string    `json:"role"`
+	UserID       uuid.UUID `json:"uid"`
+	Role         string    `json:"role"`
+	MerchantName string    `json:"mn,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -30,11 +31,12 @@ func NewManager(secret string, expireHours int) *Manager {
 }
 
 // Generate membuat JWT yang ditandatangani untuk user tertentu.
-func (m *Manager) Generate(userID uuid.UUID, role string) (string, error) {
+func (m *Manager) Generate(userID uuid.UUID, role, merchantName string) (string, error) {
 	now := time.Now().UTC()
 	claims := Claims{
-		UserID: userID,
-		Role:   role,
+		UserID:       userID,
+		Role:         role,
+		MerchantName: merchantName,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(m.expireHours) * time.Hour)),
