@@ -21,3 +21,7 @@ type SubsidyQuota struct {
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }
+
+// TableName memaksa nama tabel jamak agar konsisten dengan model lain
+// (GORM default tidak menjamakkan "quota").
+func (SubsidyQuota) TableName() string { return "subsidy_quotas" }

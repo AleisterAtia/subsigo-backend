@@ -23,7 +23,16 @@ func Connect() (*gorm.DB, error) {
 	}
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Warn),
+		Logger: logger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags),
+			logger.Config{
+				SlowThreshold: 500 * time.Millisecond,
+				LogLevel:      logger.Warn,
+				// "record not found" adalah alur normal (mis. UID tak terdaftar), jangan dianggap error.
+				IgnoreRecordNotFoundError: true,
+				Colorful:                  true,
+			},
+		),
 		// Neon meng-host di luar negeri; biarkan timestamp dalam UTC agar konsisten.
 		NowFunc: func() time.Time { return time.Now().UTC() },
 	})
