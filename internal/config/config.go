@@ -1,7 +1,7 @@
 package config
 
 import (
-	"log"
+	"errors"
 	"os"
 	"strconv"
 )
@@ -16,9 +16,11 @@ type Config struct {
 	CORSAllowOrigins string
 }
 
-// Load membaca konfigurasi dari environment dan menghentikan aplikasi
-// bila ada nilai wajib yang belum di-set.
-func Load() *Config {
+// Load membaca konfigurasi dari environment dan mengembalikan error
+// bila ada nilai wajib yang belum di-set. Sengaja TIDAK memakai log.Fatal:
+// di serverless (Vercel) os.Exit akan membuat fungsi crash
+// (FUNCTION_INVOCATION_FAILED) tanpa pesan yang berguna.
+func Load() (*Config, error) {
 	cfg := &Config{
 		Port:             getEnv("APP_PORT", "8080"),
 		JWTSecret:        os.Getenv("JWT_SECRET"),
@@ -27,10 +29,10 @@ func Load() *Config {
 	}
 
 	if cfg.JWTSecret == "" || cfg.JWTSecret == "ganti-dengan-secret-acak-yang-kuat" {
-		log.Fatal("JWT_SECRET belum di-set dengan nilai yang aman di .env")
+		return nil, errors.New("JWT_SECRET belum di-set dengan nilai yang aman (cek Environment Variables di Vercel)")
 	}
 
-	return cfg
+	return cfg, nil
 }
 
 func getEnv(key, def string) string {

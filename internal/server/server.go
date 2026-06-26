@@ -33,7 +33,10 @@ func New() (*fiber.App, *config.Config, error) {
 	// variable disuntik oleh platform, bukan dari file .env.
 	_ = godotenv.Load()
 
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, nil, err
+	}
 
 	// Koneksi ke Neon PostgreSQL. Migrasi skema TIDAK dijalankan di sini
 	// (lihat cmd/migrate) agar aman saat banyak instance serverless hidup bersamaan.
