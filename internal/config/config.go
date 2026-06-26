@@ -11,15 +11,19 @@ type Config struct {
 	Port           string
 	JWTSecret      string
 	JWTExpireHours int
+	// CORSAllowOrigins: daftar origin yang diizinkan memanggil API (dipisah koma),
+	// terutama untuk dashboard admin Next.js. Default "*" untuk kemudahan dev.
+	CORSAllowOrigins string
 }
 
 // Load membaca konfigurasi dari environment dan menghentikan aplikasi
 // bila ada nilai wajib yang belum di-set.
 func Load() *Config {
 	cfg := &Config{
-		Port:           getEnv("APP_PORT", "8080"),
-		JWTSecret:      os.Getenv("JWT_SECRET"),
-		JWTExpireHours: getEnvInt("JWT_EXPIRE_HOURS", 24),
+		Port:             getEnv("APP_PORT", "8080"),
+		JWTSecret:        os.Getenv("JWT_SECRET"),
+		JWTExpireHours:   getEnvInt("JWT_EXPIRE_HOURS", 24),
+		CORSAllowOrigins: getEnv("CORS_ALLOW_ORIGINS", "*"),
 	}
 
 	if cfg.JWTSecret == "" || cfg.JWTSecret == "ganti-dengan-secret-acak-yang-kuat" {
