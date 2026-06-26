@@ -35,3 +35,23 @@ func IsValidCommodity(c string) bool {
 		return false
 	}
 }
+
+// IsValidRole memvalidasi role pengguna dari request.
+func IsValidRole(r string) bool {
+	switch r {
+	case RoleAdmin, RoleMerchant:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsValidTxStatus memvalidasi status transaksi (dipakai untuk filter monitoring).
+func IsValidTxStatus(s string) bool {
+	switch s {
+	case TxStatusSuccess, TxStatusRejected:
+		return true
+	default:
+		return false
+	}
+}

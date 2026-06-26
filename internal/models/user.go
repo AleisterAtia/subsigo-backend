@@ -13,7 +13,10 @@ type User struct {
 	PasswordHash string    `gorm:"type:varchar(255);not null" json:"-"`
 	Role         string    `gorm:"type:varchar(16);not null;default:merchant" json:"role"`
 	// MerchantName: nama lokasi SPBU/pangkalan, hanya relevan untuk role merchant.
-	MerchantName string    `gorm:"type:varchar(128)" json:"merchant_name,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	MerchantName string `gorm:"type:varchar(128)" json:"merchant_name,omitempty"`
+	// IsActive: soft-disable akun. Petugas yang dinonaktifkan tidak bisa login lagi
+	// (dicek saat login). Default true agar akun lama tetap aktif setelah migrasi.
+	IsActive  bool      `gorm:"not null;default:true" json:"is_active"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }

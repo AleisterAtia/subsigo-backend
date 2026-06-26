@@ -1,9 +1,8 @@
 // Package server membangun aplikasi Fiber lengkap (DB, dependency injection, route).
-// Sengaja dipisah dari main agar dipakai BERSAMA oleh dua entry-point:
-//   - server lokal untuk dev: cmd/api (go run ./cmd/api)
-//   - fungsi serverless Vercel: api/index.go
-//
-// Dengan begitu konfigurasi route & middleware tidak terduplikasi di dua tempat.
+// Sengaja dipisah dari main agar logika perangkaian app bisa dipakai ulang & diuji
+// terpisah dari entry-point. Satu-satunya entry-point adalah cmd/api/main.go yang
+// dipakai BAIK untuk dev lokal (go run ./cmd/api) MAUPUN di Vercel (Go Framework
+// Preset menjalankan web server yang sama, mem-bind ke env PORT). Lihat DEPLOYMENT.md.
 package server
 
 import (
@@ -57,11 +56,13 @@ func New() (*fiber.App, *config.Config, error) {
 	// Services
 	authSvc := services.NewAuthService(userRepo, tm)
 	adminSvc := services.NewAdminService(citizenRepo, quotaRepo, txRepo)
+	userSvc := services.NewUserService(userRepo)
 	claimSvc := services.NewClaimService(db)
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authSvc)
 	adminHandler := handlers.NewAdminHandler(adminSvc)
+	userHandler := handlers.NewUserHandler(userSvc)
 	claimHandler := handlers.NewClaimHandler(claimSvc)
 
 	app := fiber.New(fiber.Config{
@@ -104,9 +105,17 @@ func New() (*fiber.App, *config.Config, error) {
 
 	// Rute admin (hanya role admin).
 	admin := protected.Group("/admin", middlewares.RequireRole(models.RoleAdmin))
+	// Manajemen warga
+	admin.Get("/citizens", adminHandler.ListCitizens)
 	admin.Post("/citizens", adminHandler.RegisterCitizen)
+	admin.Get("/citizens/:id", adminHandler.GetCitizen)
 	admin.Patch("/citizens/:id/eligibility", adminHandler.SetEligibility)
 	admin.Post("/citizens/:id/quotas", adminHandler.SetQuota)
+	// Manajemen user/petugas
+	admin.Get("/users", userHandler.ListUsers)
+	admin.Post("/users", userHandler.CreateUser)
+	admin.Patch("/users/:id", userHandler.UpdateUser)
+	// Monitoring transaksi
 	admin.Get("/transactions", adminHandler.ListTransactions)
 
 	// Rute klaim subsidi (hanya role merchant/petugas lapangan).

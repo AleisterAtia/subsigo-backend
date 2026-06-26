@@ -28,6 +28,23 @@ func NewAdminService(
 	return &AdminService{citizens: citizens, quotas: quotas, transactions: transactions}
 }
 
+// ListCitizens mengembalikan daftar warga (dengan pencarian opsional) + total untuk pagination.
+func (s *AdminService) ListCitizens(search string, limit, offset int) ([]models.Citizen, int64, error) {
+	return s.citizens.List(search, limit, offset)
+}
+
+// GetCitizen mengembalikan satu warga beserta kuotanya. ErrCitizenNotFound bila tidak ada.
+func (s *AdminService) GetCitizen(id uuid.UUID) (*models.Citizen, error) {
+	c, err := s.citizens.FindByIDWithQuotas(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrCitizenNotFound
+		}
+		return nil, err
+	}
+	return c, nil
+}
+
 // RegisterCitizen mendaftarkan warga baru (default langsung layak/eligible).
 func (s *AdminService) RegisterCitizen(nik, nfcUID, name string) (*models.Citizen, error) {
 	c := &models.Citizen{
@@ -65,7 +82,8 @@ func (s *AdminService) SetQuota(citizenID uuid.UUID, commodity, period string, t
 	return s.quotas.Upsert(citizenID, commodity, period, total)
 }
 
-// ListTransactions mengembalikan riwayat transaksi terbaru untuk monitoring.
-func (s *AdminService) ListTransactions(limit int) ([]models.Transaction, error) {
-	return s.transactions.List(limit)
+// ListTransactions mengembalikan riwayat transaksi sesuai filter untuk monitoring,
+// beserta total baris yang cocok (untuk pagination).
+func (s *AdminService) ListTransactions(f repositories.TransactionFilter) ([]models.Transaction, int64, error) {
+	return s.transactions.List(f)
 }
