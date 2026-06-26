@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -47,10 +48,14 @@ func Connect() (*gorm.DB, error) {
 		return nil, fmt.Errorf("gagal mengambil handle sql.DB: %w", err)
 	}
 
-	// Tuning pool. Neon free-tier "scales to zero" saat idle, jadi koneksi
-	// jangan disimpan terlalu lama agar tidak memakai koneksi yang sudah mati.
-	sqlDB.SetMaxOpenConns(10)
-	sqlDB.SetMaxIdleConns(5)
+	// Tuning pool. Di lingkungan SERVERLESS (Vercel) banyak instance bisa hidup
+	// bersamaan dan masing-masing memegang pool sendiri — total koneksi = jumlah
+	// instance × MaxOpenConns. Karena itu pool dijaga KECIL dan WAJIB memakai
+	// DATABASE_URL "pooled" (host berakhiran "-pooler") dari Neon (PgBouncer)
+	// agar koneksi tidak cepat habis. Nilainya bisa di-override lewat env.
+	// Neon juga "scales to zero" saat idle, jadi koneksi jangan disimpan terlalu lama.
+	sqlDB.SetMaxOpenConns(envInt("DB_MAX_OPEN_CONNS", 5))
+	sqlDB.SetMaxIdleConns(envInt("DB_MAX_IDLE_CONNS", 2))
 	sqlDB.SetConnMaxLifetime(5 * time.Minute)
 	sqlDB.SetConnMaxIdleTime(1 * time.Minute)
 
@@ -61,4 +66,14 @@ func Connect() (*gorm.DB, error) {
 	DB = db
 	log.Println("✅ Berhasil terhubung ke Neon PostgreSQL")
 	return db, nil
+}
+
+// envInt membaca integer dari environment; mengembalikan def bila kosong/invalid.
+func envInt(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return def
 }
