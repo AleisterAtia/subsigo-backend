@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/sitepat/subsigo-backend/internal/models"
+	"github.com/sitepat/subsigo-backend/internal/repositories"
 	"github.com/sitepat/subsigo-backend/internal/services"
 )
 
@@ -19,6 +20,32 @@ type AdminHandler struct {
 
 func NewAdminHandler(admin *services.AdminService) *AdminHandler {
 	return &AdminHandler{admin: admin}
+}
+
+// ListCitizens menangani GET /api/v1/admin/citizens?search=&page=&limit=.
+func (h *AdminHandler) ListCitizens(c *fiber.Ctx) error {
+	page, limit, offset := pageParams(c)
+	citizens, total, err := h.admin.ListCitizens(c.Query("search"), limit, offset)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "gagal mengambil data warga")
+	}
+	return paginated(c, citizens, page, limit, total)
+}
+
+// GetCitizen menangani GET /api/v1/admin/citizens/:id (detail + kuota).
+func (h *AdminHandler) GetCitizen(c *fiber.Ctx) error {
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "id warga tidak valid")
+	}
+	citizen, err := h.admin.GetCitizen(id)
+	if err != nil {
+		if errors.Is(err, services.ErrCitizenNotFound) {
+			return fiber.NewError(fiber.StatusNotFound, err.Error())
+		}
+		return fiber.NewError(fiber.StatusInternalServerError, "gagal mengambil data warga")
+	}
+	return c.JSON(citizen)
 }
 
 type registerCitizenRequest struct {
@@ -97,7 +124,11 @@ func (h *AdminHandler) SetQuota(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "quota_total tidak boleh negatif")
 	}
 	if req.Period == "" {
-		req.Period = time.Now().UTC().Format("2006-01")
+		// Default ke periode berjalan menurut WIB, konsisten dengan derivasi periode
+		// saat klaim (lihat ClaimService) — agar kuota yang baru di-set langsung terpakai.
+		req.Period = models.CurrentPeriod()
+	} else if !models.IsValidPeriod(req.Period) {
+		return fiber.NewError(fiber.StatusBadRequest, "period harus berformat YYYY-MM (mis. 2026-06)")
 	}
 
 	quota, err := h.admin.SetQuota(id, req.Commodity, req.Period, req.QuotaTotal)
@@ -110,14 +141,58 @@ func (h *AdminHandler) SetQuota(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(quota)
 }
 
-// ListTransactions menangani GET /api/v1/admin/transactions?limit=N.
+// ListTransactions menangani GET /api/v1/admin/transactions dengan filter & pagination.
+// Query: page, limit, status, commodity, user_id, merchant_name, from, to (YYYY-MM-DD, WIB).
 func (h *AdminHandler) ListTransactions(c *fiber.Ctx) error {
-	limit := c.QueryInt("limit", 50)
-	txs, err := h.admin.ListTransactions(limit)
+	page, limit, offset := pageParams(c)
+
+	f := repositories.TransactionFilter{
+		MerchantName: c.Query("merchant_name"),
+		Limit:        limit,
+		Offset:       offset,
+	}
+
+	if status := c.Query("status"); status != "" {
+		if !models.IsValidTxStatus(status) {
+			return fiber.NewError(fiber.StatusBadRequest, "status harus 'success' atau 'rejected'")
+		}
+		f.Status = status
+	}
+	if commodity := c.Query("commodity"); commodity != "" {
+		if !models.IsValidCommodity(commodity) {
+			return fiber.NewError(fiber.StatusBadRequest, "jenis komoditas tidak valid")
+		}
+		f.Commodity = commodity
+	}
+	if uid := c.Query("user_id"); uid != "" {
+		parsed, err := uuid.Parse(uid)
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "user_id tidak valid")
+		}
+		f.UserID = &parsed
+	}
+	if from := c.Query("from"); from != "" {
+		t, err := time.ParseInLocation("2006-01-02", from, models.WIB)
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "from harus berformat YYYY-MM-DD")
+		}
+		f.From = &t
+	}
+	if to := c.Query("to"); to != "" {
+		t, err := time.ParseInLocation("2006-01-02", to, models.WIB)
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "to harus berformat YYYY-MM-DD")
+		}
+		// Eksklusif di tengah malam WIB berikutnya agar seluruh hari 'to' ikut tercakup.
+		end := t.AddDate(0, 0, 1)
+		f.To = &end
+	}
+
+	txs, total, err := h.admin.ListTransactions(f)
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, "gagal mengambil transaksi")
 	}
-	return c.JSON(fiber.Map{"count": len(txs), "data": txs})
+	return paginated(c, txs, page, limit, total)
 }
 
 // isValidNIK memastikan NIK terdiri dari 16 digit angka.

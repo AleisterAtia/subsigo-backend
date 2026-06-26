@@ -2,7 +2,6 @@ package services
 
 import (
 	"errors"
-	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -49,8 +48,9 @@ func (s *ClaimService) Claim(userID uuid.UUID, merchantName, nfcUID, commodity s
 		return nil, ErrInvalidCommodity
 	}
 
-	// Periode kuota saat ini, format "YYYY-MM" (kuota di-reset per bulan).
-	period := time.Now().UTC().Format("2006-01")
+	// Periode kuota saat ini, format "YYYY-MM" menurut WIB (kuota di-reset per bulan).
+	// Memakai WIB agar batas bulan konsisten dengan ekspektasi admin/petugas di Indonesia.
+	period := models.CurrentPeriod()
 
 	var result ClaimResult
 

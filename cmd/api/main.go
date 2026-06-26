@@ -1,8 +1,7 @@
-// Command api menjalankan server HTTP untuk pengembangan lokal (go run ./cmd/api).
-//
-// Catatan: di PRODUKSI backend dijalankan sebagai Vercel Serverless Function
-// (lihat api/index.go), BUKAN lewat command ini. Keduanya memakai aplikasi Fiber
-// yang sama dari paket internal/server, jadi perilakunya konsisten.
+// Command api adalah satu-satunya entry-point web server, dipakai untuk dev lokal
+// (go run ./cmd/api) DAN di produksi Vercel. Vercel "Go Framework Preset" mendeteksi
+// cmd/api/main.go, menjalankannya sebagai web server long-running, lalu menyuntikkan
+// env PORT yang WAJIB di-bind (lihat internal/config.resolvePort & DEPLOYMENT.md).
 package main
 
 import (

@@ -37,6 +37,9 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		if errors.Is(err, services.ErrInvalidCredentials) {
 			return fiber.NewError(fiber.StatusUnauthorized, err.Error())
 		}
+		if errors.Is(err, services.ErrAccountDisabled) {
+			return fiber.NewError(fiber.StatusForbidden, err.Error())
+		}
 		return fiber.NewError(fiber.StatusInternalServerError, "terjadi kesalahan saat login")
 	}
 

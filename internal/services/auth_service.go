@@ -14,6 +14,9 @@ import (
 // ErrInvalidCredentials dikembalikan saat username/password salah.
 var ErrInvalidCredentials = errors.New("username atau password salah")
 
+// ErrAccountDisabled dikembalikan saat akun ada & kredensial benar tapi dinonaktifkan.
+var ErrAccountDisabled = errors.New("akun dinonaktifkan, hubungi admin")
+
 // AuthService menangani logika autentikasi.
 type AuthService struct {
 	users  *repositories.UserRepository
@@ -36,6 +39,11 @@ func (s *AuthService) Login(username, password string) (string, *models.User, er
 
 	if !hash.Check(password, u.PasswordHash) {
 		return "", nil, ErrInvalidCredentials
+	}
+
+	// Cek setelah verifikasi password agar tidak membocorkan username mana yang nonaktif.
+	if !u.IsActive {
+		return "", nil, ErrAccountDisabled
 	}
 
 	tok, err := s.tokens.Generate(u.ID, u.Role, u.MerchantName)
