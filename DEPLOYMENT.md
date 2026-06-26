@@ -1,54 +1,58 @@
-# Deployment — Vercel Serverless
+# Deployment — Vercel (Go Framework Preset / Web Server)
 
-Backend ini berjalan sebagai **satu Vercel Serverless Function** (`api/index.go`).
-Semua request di-rewrite ke fungsi itu (`vercel.json`), lalu ditangani oleh aplikasi
-Fiber dari paket `internal/server`. Untuk dev lokal masih bisa `go run ./cmd/api`.
+Vercel mendeteksi project ini sebagai **Go web server** (bukan serverless function
+per-file). "Go Framework Preset" mencari `go.mod` di root + entrypoint
+`cmd/api/main.go`, lalu menjalankannya sebagai **server long-running**. Vercel
+menyuntikkan env `PORT` dan server WAJIB listen di port itu.
+
+> Karena itu kita TIDAK memakai `api/index.go` + `vercel.json` (model serverless
+> function). Routing sepenuhnya ditangani Fiber; Vercel mem-proxy semua request
+> ke server.
 
 ## Struktur yang relevan
 
 ```
-api/index.go          # entry-point serverless (func Handler) -> adaptor.FiberApp
-vercel.json           # rewrite semua path /(.*) -> /api/index
-internal/server/      # pembangunan app Fiber (dipakai lokal & serverless)
-cmd/api/              # server HTTP untuk dev lokal
+cmd/api/main.go       # entrypoint yang dijalankan Vercel (web server)
+internal/server/      # pembangunan app Fiber (route, middleware, DI)
+internal/config/      # resolvePort(): pakai PORT (Vercel) -> APP_PORT -> 8080
 cmd/migrate/          # migrasi skema (dijalankan terpisah, lihat di bawah)
 cmd/seed/             # seeding user awal
 ```
 
-## Langkah deploy
+## Setting project di Vercel
 
-1. **Push repo ke GitHub**, lalu di Vercel: *New Project* → import repo ini.
-   Vercel otomatis mendeteksi runtime Go dari `go.mod` + folder `api/`.
-
-2. **Set Environment Variables** di Vercel (Project Settings → Environment Variables):
-   - `DATABASE_URL` → gunakan connection string **Pooled** dari Neon
-     (host `...-pooler.neon.tech`). Ini penting agar koneksi tidak cepat habis
-     saat banyak instance serverless aktif.
-   - `JWT_SECRET` → secret acak yang kuat.
+1. **Framework Preset**: pastikan = **Go** (Settings → General). Biasanya
+   terdeteksi otomatis karena ada `cmd/api/main.go`.
+2. **Root Directory**: root repo (tempat `go.mod` berada).
+3. **Environment Variables** (Settings → Environment Variables):
+   - `DATABASE_URL` → connection string **Pooled** dari Neon (host `...-pooler.neon.tech`).
+   - `JWT_SECRET` → string acak yang kuat.
    - `JWT_EXPIRE_HOURS` (opsional, default 24).
    - `CORS_ALLOW_ORIGINS` → domain dashboard admin, mis. `https://<admin>.vercel.app`.
    - `DB_MAX_OPEN_CONNS` / `DB_MAX_IDLE_CONNS` (opsional).
-   - `APP_PORT` TIDAK perlu di Vercel.
+   - JANGAN set `PORT` / `APP_PORT` di Vercel — `PORT` disuntik otomatis oleh Vercel.
 
-3. **Jalankan migrasi & seeding** (sekali, dari mesin lokal/CI yang menunjuk Neon
-   yang sama — Vercel tidak menjalankan ini otomatis):
-   ```bash
-   go run ./cmd/migrate
-   go run ./cmd/seed
-   ```
+## Migrasi & seeding (sekali, dari lokal/CI)
 
-4. **Deploy** (otomatis setiap push ke branch, sesuai PRD). Verifikasi:
-   ```
-   GET  https://<project>.vercel.app/health            -> {"status":"ok","db":"up"}
-   POST https://<project>.vercel.app/api/v1/auth/login
-   ```
+Vercel tidak menjalankan ini otomatis. Arahkan ke Neon yang sama:
 
-## Catatan / hal yang perlu dicek
+```bash
+go run ./cmd/migrate
+go run ./cmd/seed
+```
 
-- **Versi Go**: `go.mod` memakai `go 1.26.4`. Pastikan versi ini didukung oleh build
-  image Vercel saat deploy; bila gagal, turunkan ke versi Go yang didukung Vercel.
-- **Cold start**: koneksi DB diinisialisasi lazily sekali per instance dan dipakai
-  ulang pada warm start. Jika init gagal (mis. Neon baru bangun dari scale-to-zero),
-  request berikutnya otomatis mencoba lagi.
-- **Path routing**: Fiber tetap melihat path asli (mis. `/api/v1/claims`) karena
-  rewrite Vercel mempertahankan URL asli ke fungsi. Health check ada di `/health`.
+## Verifikasi setelah deploy
+
+```
+GET  https://<project>.vercel.app/health   -> {"status":"ok","db":"up"}
+POST https://<project>.vercel.app/api/v1/auth/login
+```
+
+Catatan: path `/` tidak punya route (akan balas 404 JSON) — itu normal. Tes lewat `/health`.
+
+## Catatan
+
+- **Versi Go**: `go.mod` memakai `go 1.26.4`. Pastikan didukung build image Vercel;
+  bila gagal, turunkan ke versi Go yang didukung.
+- Server membaca `PORT` lewat `internal/config.resolvePort()`. Untuk dev lokal
+  (`go run ./cmd/api`) tidak ada `PORT`, jadi memakai `APP_PORT`/8080.

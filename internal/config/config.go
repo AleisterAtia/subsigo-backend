@@ -22,7 +22,7 @@ type Config struct {
 // (FUNCTION_INVOCATION_FAILED) tanpa pesan yang berguna.
 func Load() (*Config, error) {
 	cfg := &Config{
-		Port:             getEnv("APP_PORT", "8080"),
+		Port:             resolvePort(),
 		JWTSecret:        os.Getenv("JWT_SECRET"),
 		JWTExpireHours:   getEnvInt("JWT_EXPIRE_HOURS", 24),
 		CORSAllowOrigins: getEnv("CORS_ALLOW_ORIGINS", "*"),
@@ -33,6 +33,17 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// resolvePort menentukan port HTTP yang dipakai server.
+// Vercel (Go Framework Preset) MENYUNTIKKAN env PORT dengan port acak yang WAJIB
+// dipakai — kalau server listen di port lain, Vercel menganggap gagal start.
+// Untuk dev lokal: pakai APP_PORT, fallback 8080.
+func resolvePort() string {
+	if p := os.Getenv("PORT"); p != "" {
+		return p
+	}
+	return getEnv("APP_PORT", "8080")
 }
 
 func getEnv(key, def string) string {
