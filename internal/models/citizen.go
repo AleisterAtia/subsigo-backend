@@ -20,5 +20,6 @@ type Citizen struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
-	Quotas []ServiceQuota `gorm:"foreignKey:CitizenID" json:"quotas,omitempty"`
+	Quotas        []ServiceQuota       `gorm:"foreignKey:CitizenID" json:"quotas,omitempty"`
+	Eligibilities []ServiceEligibility `gorm:"foreignKey:CitizenID" json:"eligibilities,omitempty"`
 }
