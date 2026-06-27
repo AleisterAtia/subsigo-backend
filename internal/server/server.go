@@ -50,18 +50,22 @@ func New() (*fiber.App, *config.Config, error) {
 	// Repositories
 	userRepo := repositories.NewUserRepository(db)
 	citizenRepo := repositories.NewCitizenRepository(db)
+	serviceRepo := repositories.NewServiceRepository(db)
 	quotaRepo := repositories.NewQuotaRepository(db)
+	eligibilityRepo := repositories.NewEligibilityRepository(db)
 	txRepo := repositories.NewTransactionRepository(db)
 
 	// Services
 	authSvc := services.NewAuthService(userRepo, tm)
-	adminSvc := services.NewAdminService(citizenRepo, quotaRepo, txRepo)
+	adminSvc := services.NewAdminService(citizenRepo, serviceRepo, quotaRepo, eligibilityRepo, txRepo)
+	serviceSvc := services.NewServiceService(serviceRepo)
 	userSvc := services.NewUserService(userRepo)
 	claimSvc := services.NewClaimService(db)
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authSvc)
 	adminHandler := handlers.NewAdminHandler(adminSvc)
+	serviceHandler := handlers.NewServiceHandler(serviceSvc)
 	userHandler := handlers.NewUserHandler(userSvc)
 	claimHandler := handlers.NewClaimHandler(claimSvc)
 
@@ -111,6 +115,10 @@ func New() (*fiber.App, *config.Config, error) {
 	admin.Get("/citizens/:id", adminHandler.GetCitizen)
 	admin.Patch("/citizens/:id/eligibility", adminHandler.SetEligibility)
 	admin.Post("/citizens/:id/quotas", adminHandler.SetQuota)
+	// Manajemen katalog layanan
+	admin.Get("/services", serviceHandler.ListServices)
+	admin.Post("/services", serviceHandler.CreateService)
+	admin.Patch("/services/:id", serviceHandler.UpdateService)
 	// Manajemen user/petugas
 	admin.Get("/users", userHandler.ListUsers)
 	admin.Post("/users", userHandler.CreateUser)

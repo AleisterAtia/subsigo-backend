@@ -22,7 +22,7 @@ func NewTransactionRepository(db *gorm.DB) *TransactionRepository {
 // Field kosong/nil berarti "tidak difilter".
 type TransactionFilter struct {
 	Status       string     // "success" | "rejected"
-	Commodity    string     // "LPG_3KG" | "PERTALITE"
+	ServiceCode  string     // kode layanan (mis. "LPG_3KG"); query lama ?commodity= dipetakan ke sini
 	MerchantName string     // pencarian ILIKE
 	UserID       *uuid.UUID // petugas tertentu
 	From         *time.Time // created_at >= From (inklusif)
@@ -39,8 +39,8 @@ func (r *TransactionRepository) List(f TransactionFilter) ([]models.Transaction,
 	if f.Status != "" {
 		q = q.Where("status = ?", f.Status)
 	}
-	if f.Commodity != "" {
-		q = q.Where("commodity = ?", f.Commodity)
+	if f.ServiceCode != "" {
+		q = q.Where("service_code = ?", f.ServiceCode)
 	}
 	if f.MerchantName != "" {
 		q = q.Where("merchant_name ILIKE ?", "%"+f.MerchantName+"%")

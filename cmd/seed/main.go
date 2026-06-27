@@ -8,6 +8,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/sitepat/subsigo-backend/internal/models"
 	"github.com/sitepat/subsigo-backend/pkg/database"
@@ -24,10 +25,29 @@ func main() {
 	}
 	db := database.DB
 
+	seedServices(db)
+
 	seedUser(db, "admin", "admin123", models.RoleAdmin, "")
 	seedUser(db, "petugas1", "petugas123", models.RoleMerchant, "SPBU 34-401 Merdeka")
 
 	log.Println("✅ Seeding selesai")
+}
+
+// seedServices memastikan layanan bawaan ada (idempotent) dari SATU sumber kebenaran
+// models.SeedServices — sama persis dengan yang dipakai cmd/migrate, agar tidak divergen.
+func seedServices(db *gorm.DB) {
+	list := models.SeedServices()
+	for i := range list {
+		s := list[i]
+		err := db.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "code"}},
+			DoNothing: true,
+		}).Create(&s).Error
+		if err != nil {
+			log.Fatalf("❌ Gagal seed layanan %q: %v", s.Code, err)
+		}
+	}
+	log.Printf("✅ %d layanan bawaan dipastikan ada", len(list))
 }
 
 func seedUser(db *gorm.DB, username, password, role, merchant string) {
