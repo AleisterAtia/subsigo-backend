@@ -9,7 +9,9 @@ func Migrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&User{},
 		&Citizen{},
-		&SubsidyQuota{},
+		&Service{},
+		&ServiceEligibility{},
+		&ServiceQuota{},
 		&Transaction{},
 	)
 }

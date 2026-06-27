@@ -79,6 +79,9 @@ func (h *AdminHandler) RegisterCitizen(c *fiber.Ctx) error {
 
 type setEligibilityRequest struct {
 	IsEligible *bool `json:"is_eligible"`
+	// ServiceCode opsional: bila kosong, kelayakan diterapkan ke SEMUA layanan aktif
+	// yang membutuhkan kelayakan (kompat dengan tombol kelayakan global lama).
+	ServiceCode string `json:"service_code"`
 }
 
 // SetEligibility menangani PATCH /api/v1/admin/citizens/:id/eligibility.
@@ -92,19 +95,24 @@ func (h *AdminHandler) SetEligibility(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "field is_eligible (true/false) wajib diisi")
 	}
 
-	if err := h.admin.SetEligibility(id, *req.IsEligible); err != nil {
-		if errors.Is(err, services.ErrCitizenNotFound) {
+	if err := h.admin.SetEligibility(id, req.ServiceCode, *req.IsEligible); err != nil {
+		switch {
+		case errors.Is(err, services.ErrCitizenNotFound):
 			return fiber.NewError(fiber.StatusNotFound, err.Error())
+		case errors.Is(err, services.ErrServiceNotFound):
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		default:
+			return fiber.NewError(fiber.StatusInternalServerError, "gagal memperbarui kelayakan")
 		}
-		return fiber.NewError(fiber.StatusInternalServerError, "gagal memperbarui kelayakan")
 	}
-	return c.JSON(fiber.Map{"id": id, "is_eligible": *req.IsEligible})
+	return c.JSON(fiber.Map{"id": id, "service_code": req.ServiceCode, "is_eligible": *req.IsEligible})
 }
 
 type setQuotaRequest struct {
-	Commodity  string `json:"commodity"`
-	Period     string `json:"period"` // opsional, default bulan berjalan "YYYY-MM"
-	QuotaTotal int    `json:"quota_total"`
+	ServiceCode string `json:"service_code"`
+	Commodity   string `json:"commodity"` // alias lama; dipakai bila service_code kosong (kompat)
+	Period      string `json:"period"`    // opsional, default bulan berjalan "YYYY-MM"
+	QuotaTotal  int    `json:"quota_total"`
 }
 
 // SetQuota menangani POST /api/v1/admin/citizens/:id/quotas.
@@ -117,8 +125,12 @@ func (h *AdminHandler) SetQuota(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "format request tidak valid")
 	}
-	if !models.IsValidCommodity(req.Commodity) {
-		return fiber.NewError(fiber.StatusBadRequest, "jenis komoditas tidak valid")
+	serviceCode := req.ServiceCode
+	if serviceCode == "" {
+		serviceCode = req.Commodity // kompat: terima field "commodity" lama
+	}
+	if serviceCode == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "service_code wajib diisi")
 	}
 	if req.QuotaTotal < 0 {
 		return fiber.NewError(fiber.StatusBadRequest, "quota_total tidak boleh negatif")
@@ -131,12 +143,16 @@ func (h *AdminHandler) SetQuota(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "period harus berformat YYYY-MM (mis. 2026-06)")
 	}
 
-	quota, err := h.admin.SetQuota(id, req.Commodity, req.Period, req.QuotaTotal)
+	quota, err := h.admin.SetQuota(id, serviceCode, req.Period, req.QuotaTotal)
 	if err != nil {
-		if errors.Is(err, services.ErrCitizenNotFound) {
+		switch {
+		case errors.Is(err, services.ErrCitizenNotFound):
 			return fiber.NewError(fiber.StatusNotFound, err.Error())
+		case errors.Is(err, services.ErrServiceNotFound), errors.Is(err, services.ErrServiceNotQuota):
+			return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		default:
+			return fiber.NewError(fiber.StatusInternalServerError, "gagal menetapkan kuota")
 		}
-		return fiber.NewError(fiber.StatusInternalServerError, "gagal menetapkan kuota")
 	}
 	return c.Status(fiber.StatusCreated).JSON(quota)
 }
@@ -158,11 +174,13 @@ func (h *AdminHandler) ListTransactions(c *fiber.Ctx) error {
 		}
 		f.Status = status
 	}
-	if commodity := c.Query("commodity"); commodity != "" {
-		if !models.IsValidCommodity(commodity) {
-			return fiber.NewError(fiber.StatusBadRequest, "jenis komoditas tidak valid")
-		}
-		f.Commodity = commodity
+	// Terima ?service_code= (baru) atau ?commodity= (lama, kompat) sebagai filter layanan.
+	// Tidak divalidasi terhadap daftar tetap karena layanan kini dinamis — kode tak dikenal
+	// hanya menghasilkan 0 baris, bukan error.
+	if svc := c.Query("service_code"); svc != "" {
+		f.ServiceCode = svc
+	} else if commodity := c.Query("commodity"); commodity != "" {
+		f.ServiceCode = commodity
 	}
 	if uid := c.Query("user_id"); uid != "" {
 		parsed, err := uuid.Parse(uid)

@@ -34,7 +34,7 @@ func (r *CitizenRepository) FindByIDWithQuotas(id uuid.UUID) (*models.Citizen, e
 	var c models.Citizen
 	err := r.db.
 		Preload("Quotas", func(db *gorm.DB) *gorm.DB {
-			return db.Order("period DESC, commodity ASC")
+			return db.Order("period DESC, service_code ASC")
 		}).
 		First(&c, "id = ?", id).Error
 	if err != nil {
@@ -64,11 +64,4 @@ func (r *CitizenRepository) List(search string, limit, offset int) ([]models.Cit
 		return nil, 0, err
 	}
 	return citizens, total, nil
-}
-
-// SetEligibility memperbarui status kelayakan. Mengembalikan jumlah baris yang terpengaruh
-// (0 berarti warga tidak ditemukan).
-func (r *CitizenRepository) SetEligibility(id uuid.UUID, eligible bool) (int64, error) {
-	res := r.db.Model(&models.Citizen{}).Where("id = ?", id).Update("is_eligible", eligible)
-	return res.RowsAffected, res.Error
 }

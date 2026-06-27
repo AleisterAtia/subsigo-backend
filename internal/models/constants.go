@@ -3,16 +3,25 @@ package models
 // Role petugas/pengguna sistem.
 const (
 	RoleAdmin    = "admin"    // pegawai kelurahan/pemerintah (dashboard web)
-	RoleMerchant = "merchant" // petugas lapangan (SPBU/pangkalan gas)
+	RoleMerchant = "merchant" // petugas lapangan (SPBU/pangkalan gas, dll)
 )
 
-// Jenis komoditas subsidi yang bisa diklaim.
+// Kind layanan (Service.Kind) — menentukan perilaku alur klaim.
 const (
-	CommodityLPG3KG    = "LPG_3KG"
-	CommodityPertalite = "PERTALITE"
+	ServiceKindQuota       = "quota"       // butuh kelayakan + potong kuota per periode
+	ServiceKindEligibility = "eligibility" // butuh kelayakan, hanya catat kejadian
+	ServiceKindLog         = "log"         // sekadar verifikasi identitas + catat
 )
 
-// Status hasil transaksi klaim.
+// Code layanan bawaan yang di-seed. LPG_3KG & PERTALITE dipertahankan persis agar
+// aplikasi mobile (yang mengirim "commodity" berisi nilai ini) tetap berfungsi.
+const (
+	ServiceCodeLPG3KG    = "LPG_3KG"
+	ServiceCodePertalite = "PERTALITE"
+	ServiceCodeKlinik    = "KLINIK_DAFTAR" // contoh layanan non-subsidi (Kind=log)
+)
+
+// Status hasil transaksi.
 const (
 	TxStatusSuccess  = "success"
 	TxStatusRejected = "rejected"
@@ -21,15 +30,15 @@ const (
 // Alasan penolakan transaksi (dipakai di field Reason).
 const (
 	ReasonNotRegistered = "KTP tidak terdaftar"
-	ReasonNotEligible   = "Warga tidak layak menerima subsidi"
-	ReasonQuotaEmpty    = "Kuota subsidi sudah habis"
-	ReasonNoQuotaConfig = "Kuota untuk komoditas ini belum diatur"
+	ReasonNotEligible   = "Warga tidak layak menerima layanan ini"
+	ReasonQuotaEmpty    = "Kuota layanan sudah habis"
+	ReasonNoQuotaConfig = "Kuota untuk layanan ini belum diatur"
 )
 
-// IsValidCommodity memvalidasi jenis komoditas dari request.
-func IsValidCommodity(c string) bool {
-	switch c {
-	case CommodityLPG3KG, CommodityPertalite:
+// IsValidServiceKind memvalidasi Kind layanan.
+func IsValidServiceKind(k string) bool {
+	switch k {
+	case ServiceKindQuota, ServiceKindEligibility, ServiceKindLog:
 		return true
 	default:
 		return false
