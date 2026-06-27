@@ -36,6 +36,7 @@ func (r *CitizenRepository) FindByIDWithQuotas(id uuid.UUID) (*models.Citizen, e
 		Preload("Quotas", func(db *gorm.DB) *gorm.DB {
 			return db.Order("period DESC, service_code ASC")
 		}).
+		Preload("Eligibilities").
 		First(&c, "id = ?", id).Error
 	if err != nil {
 		return nil, err
